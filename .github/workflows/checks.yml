@@ -1,0 +1,70 @@
+# Unmeasured checks run (Stage 8, subject 4). No ECO-CI: timings and pass counts only.
+# Answers: does it install/lint/build on a runner, and is the suite faster serial or parallel?
+name: Checks (not measured)
+
+on:
+  workflow_dispatch:
+
+env:
+  REPEATS: 5
+
+jobs:
+  install-lint-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Runner
+        run: |
+          echo "nproc=$(nproc) cpu=$(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2 | xargs)" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: toolchain (npm 12)
+        run: |
+          cd "$RUNNER_TEMP"
+          s=$(date +%s.%N); npm install -g npm@12 --no-fund --no-audit; e=$(date +%s.%N)
+          echo "toolchain_s=$(echo "$e - $s" | bc) npm=$(npm -v)" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: install
+        run: |
+          s=$(date +%s.%N); npm ci --no-fund --no-audit; e=$(date +%s.%N)
+          echo "install_s=$(echo "$e - $s" | bc)" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: lint
+        run: |
+          s=$(date +%s.%N); npm run lint; e=$(date +%s.%N)
+          echo "lint_s=$(echo "$e - $s" | bc)" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: build
+        run: |
+          s=$(date +%s.%N); npm run build; e=$(date +%s.%N)
+          echo "build_s=$(echo "$e - $s" | bc) dist_files=$(find dist -type f | wc -l) dist_kb=$(du -sk dist | cut -f1)" | tee -a "$GITHUB_STEP_SUMMARY"
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [serial, parallel]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Runner
+        run: |
+          echo "mode=${{ matrix.mode }} nproc=$(nproc) cpu=$(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2 | xargs)" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: toolchain + install
+        run: |
+          (cd "$RUNNER_TEMP" && npm install -g npm@12 --no-fund --no-audit)
+          npm ci --no-fund --no-audit
+      - name: tests x REPEATS (fresh Jest cache each time, as on a fresh runner)
+        run: |
+          FLAG=""; [ "${{ matrix.mode }}" = serial ] && FLAG="--runInBand"
+          fail=0
+          for i in $(seq 1 "$REPEATS"); do
+            c="$RUNNER_TEMP/jest-cache-$i"; o="$RUNNER_TEMP/jest-$i.json"
+            s=$(date +%s.%N)
+            npx jest $FLAG --cacheDirectory "$c" --json --outputFile "$o" >/dev/null 2>&1 || fail=1
+            e=$(date +%s.%N)
+            r=$(node -e "const j=require('$o');console.log(j.numPassedTestSuites+'/'+j.numTotalTestSuites+' files, '+j.numPassedTests+'/'+j.numTotalTests+' tests')")
+            echo "run$i ${{ matrix.mode }} test_s=$(echo "$e - $s" | bc) $r" | tee -a "$GITHUB_STEP_SUMMARY"
+          done
+          exit $fail
