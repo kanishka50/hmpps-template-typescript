@@ -1,0 +1,10 @@
+E,build,35648433373,9,"AMD EPYC 9V45 96-Core Processor",1,toolchain,18.7108,13.6606,3.87,3.53
+E,build,35648433373,9,"AMD EPYC 9V45 96-Core Processor",2,install,56.2272,36.9226,5.60,6.59
+E,build,35648433373,9,"AMD EPYC 9V45 96-Core Processor",3,build,61.7518,14.6705,6.01,2.44
+E,build,35648433373,9,"AMD EPYC 9V45 96-Core Processor",4,deploy,44.3489,93.4852,5.07,18.44
+E,lint,35648433373,9,"Intel(R) Xeon(R) 6973P-C",1,toolchain,23.2313,27.0512,4.04,6.69
+E,lint,35648433373,9,"Intel(R) Xeon(R) 6973P-C",2,install,43.0966,41.2514,4.85,8.51
+E,lint,35648433373,9,"Intel(R) Xeon(R) 6973P-C",3,lint,51.9235,42.465,5.33,7.96
+E,test,35648433373,9,"AMD EPYC 9V74 80-Core Processor",1,toolchain,11.5756,12.9708,3.43,3.78
+E,test,35648433373,9,"AMD EPYC 9V74 80-Core Processor",2,install,53.3579,46.2017,5.41,8.54
+E,test,35648433373,9,"AMD EPYC 9V74 80-Core Processor",3,test,3.06,4.80139,2.79,1.72

@@ -1,0 +1,6 @@
+B,main,35644821041,3,"Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz",1,toolchain,18.3159,15.8732,3.87,4.10
+B,main,35644821041,3,"Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz",2,install,40.4839,46.8604,4.73,9.90
+B,main,35644821041,3,"Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz",3,lint,45.5985,45.9303,5.00,9.18
+B,main,35644821041,3,"Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz",4,test,26.7123,8.96959,4.17,2.15
+B,main,35644821041,3,"Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz",5,build,57.9352,19.7492,5.84,3.38
+B,main,35644821041,3,"Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz",6,deploy,59.4092,77.3391,5.89,13.12
