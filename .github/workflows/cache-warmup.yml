@@ -1,0 +1,55 @@
+# ---------------------------------------------------------------------------
+# NOT A MEASURED CONFIGURATION. Run once before collecting cached runs on a new
+# subject, or whenever GitHub has evicted the cache (after 7 days unused).
+#
+# Every cached configuration fails if its npm cache does not restore, so that
+# an uncached install can never be recorded as a cached one. But setup-node
+# saves its cache only when the whole job SUCCEEDS (`post-if: success()`), so a
+# failed cached run never creates the cache it was missing. This workflow
+# creates it instead: the same checkout, the same setup-node inputs (and so the
+# same cache key, which is derived from package-lock.json), then `npm ci`.
+#
+# It takes no measurements and its name does not start with "Pipeline -
+# Config", so the collector never picks it up.
+# ---------------------------------------------------------------------------
+name: Cache warm-up (not measured)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  warm:
+    name: Populate the npm cache
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        id: setup
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Report cache state before warming
+        run: |
+          echo "setup-node cache-hit: '${{ steps.setup.outputs.cache-hit }}'"
+
+      # The subject requires npm 12 (.npmrc engine-strict). Installed exactly as in
+      # the measured configurations: pinned version, from outside the repository,
+      # with a throwaway cache, so the npm tarball is NOT saved into ~/.npm and
+      # the restored cache holds only what `npm ci` put there.
+      - name: Install npm 12.0.2 (required by the subject)
+        working-directory: ${{ runner.temp }}
+        run: |
+          npm install -g "npm@12.0.2" --cache "$RUNNER_TEMP/npm-toolchain-cache" --no-fund --no-audit
+          npm -v
+
+      - name: Install dependencies (fills ~/.npm, saved by setup-node's post step)
+        run: npm ci

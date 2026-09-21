@@ -1,0 +1,34 @@
+# ---------------------------------------------------------------------------
+# ADDED FOR THE GREEN DEVOPS EXPERIMENT. Not part of the upstream project.
+#
+# The deploy stage: package the artefacts the pipeline has ALREADY produced
+# (dist/ from the build stage, node_modules from the install stage) into a
+# runnable image.
+#
+# The project's own Dockerfile runs its own npm 12 upgrade, `npm ci` and
+# `npm run build` inside the image, so using it as the deploy stage would make
+# the deploy stage repeat the toolchain, install and build stages, and the npm
+# cache restored by setup-node cannot reach inside a docker build. This keeps
+# every stage's work distinct (the same choice as on the other subjects).
+#
+# This subject's build (esbuild) writes the compiled assets into dist/ as
+# well, so assets/ is not copied separately.
+#
+# Nothing is pushed to any registry.
+# ---------------------------------------------------------------------------
+FROM node:24-alpine
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV BUILD_NUMBER=experiment
+ENV GIT_REF=experiment
+ENV GIT_BRANCH=experiment
+
+COPY package.json package-lock.json ./
+COPY node_modules ./node_modules
+COPY dist ./dist
+
+EXPOSE 3000
+
+CMD ["node", "dist/server.js"]

@@ -1,0 +1,16 @@
+# ADDED FOR THE GREEN DEVOPS EXPERIMENT. Not part of the upstream project.
+#
+# BuildKit reads <dockerfile>.dockerignore in preference to .dockerignore, so
+# this applies ONLY to Dockerfile.experiment and the project's own .dockerignore
+# is left untouched for its own Dockerfile.
+#
+# The project's .dockerignore excludes dist/ and node_modules/ because its image
+# builds them itself. The packaging image must do the opposite: it ships the
+# artefacts the earlier pipeline stages already produced.
+.git
+integration_tests
+test_results
+helm_deploy
+docker-compose*
+*.md
+npm-debug.log
