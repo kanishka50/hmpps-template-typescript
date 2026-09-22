@@ -33,7 +33,7 @@ REQUIRED_CPU="${REQUIRED_CPU:-EPYC 7763}"
 MAX_FAIL="${MAX_FAIL:-3}"
 POLL="${POLL:-20}"
 
-DIR="experiment/data/confirmatory"
+DIR="${DIR:-experiment/data/confirmatory}"   # validation: DIR=experiment/data/confirmatory-validation
 KEPT="$DIR/kept-runs.csv"
 LOG="$DIR/attempts.csv"
 mkdir -p "$DIR"
