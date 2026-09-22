@@ -102,7 +102,17 @@ for cfg in $SCHEDULE; do
     until [ "$("$GH" run view "$run_id" --repo "$REPO" --json status --jq '.status' 2>/dev/null)" = "completed" ]; do
       sleep "$POLL"
     done
-    conclusion=$("$GH" run view "$run_id" --repo "$REPO" --json conclusion --jq '.conclusion' 2>/dev/null)
+
+    # The conclusion can still be null for a few seconds after the status turns
+    # "completed", and an empty read would be counted as a failure. Re-read it
+    # until GitHub reports one.
+    conclusion=""
+    for _ in $(seq 1 15); do
+      conclusion=$("$GH" run view "$run_id" --repo "$REPO" --json conclusion --jq '.conclusion // empty' 2>/dev/null)
+      [ -n "$conclusion" ] && break
+      sleep 10
+    done
+    [ -n "$conclusion" ] || conclusion="unknown"
 
     # A rejection is a cancelled run in which some Processor gate did not pass.
     # A cancelled run whose gates all passed was cancelled by something else,
