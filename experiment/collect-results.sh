@@ -16,7 +16,7 @@
 set -uo pipefail
 
 REPO="kanishka50/hmpps-template-typescript"
-OUTDIR="experiment/data"
+OUTDIR="${OUTDIR:-experiment/data}"   # confirmatory: OUTDIR=experiment/data/confirmatory
 RAWDIR="$OUTDIR/raw"
 COMBINED="$OUTDIR/measurements-all.csv"
 HEADER="config,job,run_id,run_number,cpu_model,stage_index,label,cpu_avg_pct,energy_j,power_avg_w,duration_s"
@@ -26,10 +26,16 @@ command -v gh >/dev/null 2>&1 || GH="/c/Program Files/GitHub CLI/gh.exe"
 
 mkdir -p "$RAWDIR"
 
+if [ -n "${RUN_LIST:-}" ]; then
+  # Confirmatory round: exactly the runs the dispatcher kept, nothing else.
+  echo "Reading kept runs from $RUN_LIST..."
+  RUN_IDS=$(tail -n +2 "$RUN_LIST" | cut -d, -f2)
+else
 echo "Listing successful runs..."
 RUN_IDS=$("$GH" run list --repo "$REPO" --limit 300 \
             --json databaseId,conclusion,name \
             --jq '.[] | select(.conclusion == "success") | select(.name | startswith("Pipeline - Config")) | .databaseId')
+fi
 
 if [ -z "$RUN_IDS" ]; then
   echo "No successful runs found."

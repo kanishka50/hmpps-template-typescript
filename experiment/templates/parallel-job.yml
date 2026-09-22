@@ -3,6 +3,26 @@
     runs-on: ubuntu-latest
 @@NEEDS@@
     steps:
+      # CONFIRMATORY ROUND (Decision 12). With `required_cpu` set, a job on any
+      # other processor cancels the WHOLE run before anything is restored or
+      # measured; the dispatcher (run-confirmatory.sh) then sends it again, and a
+      # cancelled run is never collected. Empty (the default) accepts any
+      # processor, so the exploratory runs are reproduced unchanged.
+      - name: Processor gate
+        env:
+          REQUIRED_CPU: ${{ inputs.required_cpu }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          CPU="$(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2- | xargs)"
+          echo "CPU: $CPU | required: '${REQUIRED_CPU:-<any>}'"
+          if [ -n "$REQUIRED_CPU" ] && [[ "$CPU" != *"$REQUIRED_CPU"* ]]; then
+            echo "::error::PROCESSOR-REJECTED: '$CPU' is not '$REQUIRED_CPU'. Cancelling the run."
+            gh run cancel "${{ github.run_id }}" --repo "${{ github.repository }}"
+            sleep 120
+            exit 1
+          fi
+          echo "Processor accepted."
+
       - name: Log runner context
         run: |
           echo "RUN_STARTED=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"

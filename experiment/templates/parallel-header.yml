@@ -19,9 +19,15 @@ name: Pipeline - Config E (Cached+Parallel)
 
 on:
   workflow_dispatch:
+    inputs:
+      required_cpu:
+        description: 'Confirmatory round: run only on this processor (e.g. EPYC 7763). Empty accepts any.'
+        required: false
+        default: ''
 
 permissions:
   contents: read
+  actions: write   # the processor gate cancels its own run
 
 env:
   CONFIG_ID: 'E'
