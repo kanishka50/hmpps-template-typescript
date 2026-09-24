@@ -1,0 +1,260 @@
+# GENERATED FILE - do not edit. Regenerate with make-workflows.py (setup-cost check,
+# kept in the dissertation repository under docs/implementation/setup-cost/).
+# ---------------------------------------------------------------------------
+# NOT A PIPELINE CONFIGURATION. A follow-up check to the confirmatory round: it
+# measures the Node.js setup step, which in a cached configuration also restores
+# the npm cache, and which the measured configurations leave outside ECO-CI's
+# window. Derived from config-b.yml; only the measurement window differs.
+# ---------------------------------------------------------------------------
+name: Setup cost - Config SB (cache, setup measured)
+
+# ---------------------------------------------------------------------------
+# Green DevOps experiment (Phase 7).
+#
+# Subject application: ministryofjustice/hmpps-template-typescript, the MoJ
+# Express/TypeScript service template (subject 4, small / fast), pinned by
+# content to upstream 5d1eb72.
+#
+# The independent variable is the pipeline configuration. All six
+# configurations are generated from templates so that nothing can drift
+# between them except the factors that define them:
+#
+#   A Full            no cache | lint | all tests, one process
+#   B Cached          CACHE    | lint | all tests, one process
+#   C Minimal         no cache | ---- | 1/4 of tests, one process
+#   D Cached+Minimal  CACHE    | ---- | 1/4 of tests, one process
+#   E Cached+Parallel CACHE    | lint and tests as parallel jobs (other template)
+#   F Cached+Workers  CACHE    | lint | all tests, Jest's default workers
+#
+# "Minimal" is defined MECHANICALLY: the lint stage is removed and the test
+# stage runs `--shard=1/4`, the test runner's own deterministic quarter of the
+# suite. A subset chosen by hand would differ per application and could not be
+# defended against the suspicion that it was chosen for its effect.
+# ---------------------------------------------------------------------------
+
+on:
+  workflow_dispatch:
+    inputs:
+      required_cpu:
+        description: 'Confirmatory round: run only on this processor (e.g. EPYC 7763). Empty accepts any.'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+  actions: write   # the processor gate cancels its own run
+
+env:
+  CONFIG_ID: 'SB'
+  SUBJECT_UPSTREAM_SHA: 5d1eb72e1b7db024aebf03441eb4c0e5e9ab54b0
+  SUBJECT_WORKLOAD_HASH: 755e02a307a2fb9ddd29a42992508b84730eb670
+  # Exact npm version, so a new 12.x release cannot change the toolchain or
+  # install stages part-way through collection (upstream's Dockerfile pins it too).
+  NPM_VERSION: '12.0.2'
+  # Controls
+  TZ: UTC
+  LANG: C.UTF-8
+  FORCE_COLOR: '0'
+
+jobs:
+  run:
+    name: Config B - Cached
+    runs-on: ubuntu-latest
+
+    steps:
+      # CONFIRMATORY ROUND (Decision 12). With `required_cpu` set, a job on any
+      # other processor cancels the WHOLE run before anything is restored or
+      # measured; the dispatcher (run-confirmatory.sh) then sends it again, and a
+      # cancelled run is never collected. Empty (the default) accepts any
+      # processor, so the exploratory runs are reproduced unchanged.
+      - name: Processor gate
+        env:
+          REQUIRED_CPU: ${{ inputs.required_cpu }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          CPU="$(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2- | xargs)"
+          echo "CPU: $CPU | required: '${REQUIRED_CPU:-<any>}'"
+          if [ -n "$REQUIRED_CPU" ] && [[ "$CPU" != *"$REQUIRED_CPU"* ]]; then
+            echo "::error::PROCESSOR-REJECTED: '$CPU' is not '$REQUIRED_CPU'. Cancelling the run."
+            gh run cancel "${{ github.run_id }}" --repo "${{ github.repository }}"
+            sleep 120
+            exit 1
+          fi
+          echo "Processor accepted."
+
+      - name: Log runner context
+        run: |
+          echo "RUN_STARTED=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
+          echo "=== RUNNER CONTEXT (control variables) ==="
+          echo "Config:   ${{ env.CONFIG_ID }}"
+          echo "Image:    ${ImageOS:-unknown} / ${ImageVersion:-unknown}"
+          echo "CPU:      $(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2- | xargs)"
+          echo "Cores:    $(nproc)"
+          echo "Kernel:   $(uname -r)"
+
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Verify the measured workload is the pinned one
+        run: |
+          HASH="$(git ls-tree -r --full-tree HEAD \
+                  | awk -F'\t' '$2 !~ /^(\.github\/|experiment\/|Dockerfile\.experiment)/' \
+                  | sha1sum | cut -d' ' -f1)"
+          echo "HEAD commit   : $(git rev-parse HEAD)"
+          echo "server tree   : $(git rev-parse HEAD:server)"
+          echo "workload hash : $HASH"
+          if [ "$HASH" != "${{ env.SUBJECT_WORKLOAD_HASH }}" ]; then
+            echo "::error::The workload differs from upstream ${{ env.SUBJECT_UPSTREAM_SHA }}; do not use this run."
+            exit 1
+          fi
+          echo "Workload matches the pinned upstream source."
+
+      - name: ECO-CI - start measurement
+        uses: green-coding-solutions/eco-ci-energy-estimation@v5
+        with:
+          task: start-measurement
+          send-data: false
+          json-output: true
+
+      - name: Set up Node.js
+        id: setup
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          # Dependency caching ON - a defining factor of this configuration.
+          cache: 'npm'
+
+      - name: ECO-CI - measure setup
+        uses: green-coding-solutions/eco-ci-energy-estimation@v5
+        with:
+          task: get-measurement
+          label: setup
+          send-data: false
+
+      # ================= STAGE: TOOLCHAIN =================
+      - name: Install npm ${{ env.NPM_VERSION }} (required by the subject)
+        working-directory: ${{ runner.temp }}
+        run: |
+          npm install -g "npm@${{ env.NPM_VERSION }}" --cache "$RUNNER_TEMP/npm-toolchain-cache" --no-fund --no-audit
+          v="$(npm -v)"
+          echo "npm $v"
+          [ "$v" = "${{ env.NPM_VERSION }}" ] || { echo "::error::npm is $v, expected ${{ env.NPM_VERSION }}."; exit 1; }
+
+      - name: ECO-CI - measure toolchain
+        uses: green-coding-solutions/eco-ci-energy-estimation@v5
+        with:
+          task: get-measurement
+          label: toolchain
+          send-data: false
+
+      # ================= STAGE: INSTALL =================
+      - name: Install dependencies
+        run: npm ci
+
+      - name: ECO-CI - measure install
+        uses: green-coding-solutions/eco-ci-energy-estimation@v5
+        with:
+          task: get-measurement
+          label: install
+          send-data: false
+
+      # The cache state is checked AFTER the measured stages, outside every one of them.
+      - name: Verify the cache state matches the configuration
+        run: |
+          expected='hit'
+          actual='${{ steps.setup.outputs.cache-hit }}'
+          echo "cache expected: $expected | setup-node reported: '${actual:-<none>}'"
+          if [ "$expected" = "hit" ] && [ "$actual" != "true" ]; then
+            echo "::error::CACHED configuration did not restore a cache. This run would"
+            echo "::error::have measured an uncached install. Discarding it."
+            echo "::error::Run the 'Cache warm-up (not measured)' workflow, then re-dispatch."
+            exit 1
+          fi
+          if [ "$expected" = "none" ] && [ "$actual" = "true" ]; then
+            echo "::error::UNCACHED configuration restored a cache. Not a valid measurement."
+            exit 1
+          fi
+
+      # ================= RESULTS =================
+      - name: ECO-CI - display results
+        uses: green-coding-solutions/eco-ci-energy-estimation@v5
+        with:
+          task: display-results
+          send-data: false
+
+      - name: Write result files
+        if: always()
+        run: |
+          mkdir -p results
+          cp -r /tmp/eco-ci results/eco-ci-raw 2>/dev/null \
+            || echo "WARNING: /tmp/eco-ci not present"
+
+          CPU="$(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2- | xargs)"
+          {
+            echo '{'
+            echo '  "config": "SB",'
+            echo '  "config_name": "Setup cost, cache",'
+            echo '  "subject": "hmpps-template-typescript",'
+            echo '  "job": "main",'
+            echo '  "run_id": "${{ github.run_id }}",'
+            echo '  "run_number": "${{ github.run_number }}",'
+            echo '  "run_attempt": "${{ github.run_attempt }}",'
+            echo '  "commit": "'"$(git rev-parse HEAD)"'",'
+            echo '  "server_tree": "'"$(git rev-parse HEAD:server)"'",'
+            echo '  "npm_version": "'"$(npm -v)"'",'
+            echo '  "runner_image": "'"${ImageOS:-unknown}/${ImageVersion:-unknown}"'",'
+            echo '  "cpu_model": "'"$CPU"'",'
+            echo '  "cpu_cores": "'"$(nproc)"'",'
+            echo '  "eco_power_model": "github_EPYC_7763_4_CPU_shared.sh",'
+            echo '  "started_utc": "${{ env.RUN_STARTED }}",'
+            echo '  "finished_utc": "'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"'
+            echo '}'
+          } > results/meta.json
+          cat results/meta.json
+
+          VARS=results/eco-ci-raw/vars.sh
+          getvar() {
+            grep -m1 -E "^(export[[:space:]]+)?$1=" "$VARS" 2>/dev/null \
+              | sed -E "s/^(export[[:space:]]+)?$1=//" \
+              | sed -E "s/^[\"']//; s/[\"']$//"
+          }
+
+          # `job` is carried in every row because Config E runs several jobs on
+          # separate runners and a run's total energy is the SUM across them.
+          echo "config,job,run_id,run_number,cpu_model,stage_index,label,cpu_avg_pct,energy_j,power_avg_w,duration_s" > results/measurements.csv
+          i=1
+          while [ -n "$(getvar "ECO_CI_MEASUREMENT_${i}_LABEL")" ]; do
+            printf '%s,%s,%s,%s,"%s",%s,%s,%s,%s,%s,%s\n' \
+              "SB" "main" \
+              "${{ github.run_id }}" "${{ github.run_number }}" "$CPU" "$i" \
+              "$(getvar "ECO_CI_MEASUREMENT_${i}_LABEL")" \
+              "$(getvar "ECO_CI_MEASUREMENT_${i}_CPU_AVG")" \
+              "$(getvar "ECO_CI_MEASUREMENT_${i}_ENERGY")" \
+              "$(getvar "ECO_CI_MEASUREMENT_${i}_POWER_AVG")" \
+              "$(getvar "ECO_CI_MEASUREMENT_${i}_TIME")" \
+              >> results/measurements.csv
+            i=$((i + 1))
+          done
+          cat results/measurements.csv
+
+          rows=$(( $(wc -l < results/measurements.csv) - 1 ))
+          if [ "$rows" -lt 3 ]; then
+            echo "::error::Parsed $rows measurement rows, expected 3. Do not collect data until this is fixed."
+            exit 1
+          fi
+
+          case "$CPU" in
+            *7763*) echo "Power model MATCHES runner CPU ($CPU)." ;;
+            *) echo "::warning::Runner CPU is '$CPU' but ECO-CI estimates with the EPYC 7763 power model. Absolute Joules carry a systematic bias - stratify by cpu_model at analysis." ;;
+          esac
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: result-SB-${{ github.run_id }}-${{ github.run_attempt }}
+          path: results/
+          retention-days: 30
+          if-no-files-found: error
